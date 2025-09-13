@@ -22,8 +22,9 @@ function App() {
       setError('Please enter some text to process');
       return;
     }
-
-    if (!cipherKey.trim() && ['caesar', 'polybius'].includes(cipherType)) {
+    
+    // Fix: Only caesar and transposition require keys, not polybius
+    if (!cipherKey.trim() && ['caesar', 'transposition'].includes(cipherType)) {
       setError('Please enter a key for this cipher type');
       return;
     }
