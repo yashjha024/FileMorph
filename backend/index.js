@@ -9,7 +9,8 @@ const railFenceCipher = require('./ciphers/railFence');
 const transpositionCipher = require('./ciphers/transposition');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+// Fix port mismatch - use 8000 to match frontend expectations
+const PORT = process.env.PORT || 8000;
 
 // Middleware
 app.use(cors());
@@ -25,19 +26,21 @@ const CIPHER_MODULES = {
 
 // Input validation middleware
 const validateCipherInput = (req, res, next) => {
-  const { cipherType, text, key } = req.body;
+  // Fix: Accept both cipherType and cipher_type from frontend
+  const { cipherType, cipher_type, text, key } = req.body;
+  const actualCipherType = cipherType || cipher_type;
   
   // Check required fields
-  if (!cipherType || !text) {
+  if (!actualCipherType || !text) {
     return res.status(400).json({
       error: 'Missing required fields: cipherType and text are required'
     });
   }
   
   // Check if cipher type is supported
-  if (!CIPHER_MODULES[cipherType.toLowerCase()]) {
+  if (!CIPHER_MODULES[actualCipherType.toLowerCase()]) {
     return res.status(400).json({
-      error: `Unsupported cipher type: ${cipherType}. Supported types: ${Object.keys(CIPHER_MODULES).join(', ')}`
+      error: `Unsupported cipher type: ${actualCipherType}. Supported types: ${Object.keys(CIPHER_MODULES).join(', ')}`
     });
   }
   
@@ -48,24 +51,25 @@ const validateCipherInput = (req, res, next) => {
     });
   }
   
-  // Check if key is provided when required
-  const cipherModule = CIPHER_MODULES[cipherType.toLowerCase()];
-  const requiresKey = ['caesar', 'transposition'].includes(cipherType.toLowerCase());
+  // Fix: Correct key requirements - only caesar and transposition need keys
+  const requiresKey = ['caesar', 'transposition'].includes(actualCipherType.toLowerCase());
   
   if (requiresKey && !key) {
     return res.status(400).json({
-      error: `Cipher type '${cipherType}' requires a key parameter`
+      error: `Cipher type '${actualCipherType}' requires a key parameter`
     });
   }
   
+  // Store normalized cipher type for use in handlers
+  req.body.normalizedCipherType = actualCipherType.toLowerCase();
   next();
 };
 
 // POST /encrypt route
 app.post('/encrypt', validateCipherInput, (req, res) => {
   try {
-    const { cipherType, text, key } = req.body;
-    const cipherModule = CIPHER_MODULES[cipherType.toLowerCase()];
+    const { text, key, normalizedCipherType } = req.body;
+    const cipherModule = CIPHER_MODULES[normalizedCipherType];
     
     let result;
     if (key !== undefined) {
@@ -74,11 +78,12 @@ app.post('/encrypt', validateCipherInput, (req, res) => {
       result = cipherModule.encrypt(text);
     }
     
+    // Fix: Frontend expects 'result' field
     res.json({
       success: true,
-      cipherType: cipherType.toLowerCase(),
+      cipherType: normalizedCipherType,
       originalText: text,
-      encryptedText: result,
+      result: result, // Changed from encryptedText to result
       key: key || null
     });
   } catch (error) {
@@ -92,8 +97,8 @@ app.post('/encrypt', validateCipherInput, (req, res) => {
 // POST /decrypt route
 app.post('/decrypt', validateCipherInput, (req, res) => {
   try {
-    const { cipherType, text, key } = req.body;
-    const cipherModule = CIPHER_MODULES[cipherType.toLowerCase()];
+    const { text, key, normalizedCipherType } = req.body;
+    const cipherModule = CIPHER_MODULES[normalizedCipherType];
     
     let result;
     if (key !== undefined) {
@@ -102,11 +107,12 @@ app.post('/decrypt', validateCipherInput, (req, res) => {
       result = cipherModule.decrypt(text);
     }
     
+    // Fix: Frontend expects 'result' field
     res.json({
       success: true,
-      cipherType: cipherType.toLowerCase(),
+      cipherType: normalizedCipherType,
       encryptedText: text,
-      decryptedText: result,
+      result: result, // Changed from decryptedText to result
       key: key || null
     });
   } catch (error) {
